@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>名前練習プリントメーカー（1年生用）</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap');
+    
+    body {
+      font-family: 'Klee One', "UD Digi Kyokasho NK-R", "UD Digi Kyokasho N-R", "Yu Mincho", serif;
+      background-color: #f3f4f6;
+    }
+    
+    .vertical-rl {
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+    }
+    
+    .font-kyokasho {
+      font-family: "UD Digi Kyokasho NK-R", "UD Digi Kyokasho N-R", 'Klee One', serif;
+    }
+
+    /* --- 印刷基本設定 --- */
+    @media print {
+      html, body {
+        height: auto !important;
+        overflow: visible !important;
+        background-color: white !important;
+      }
+      
+      #app-root {
+        display: block !important;
+        height: auto !important;
+        overflow: visible !important;
+      }
+
+      .no-print, .modal-overlay, #tabs-nav, #settings-panel, .print-guide-box {
+        display: none !important;
+      }
+
+      #preview-wrapper {
+        background-color: white !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        height: auto !important;
+        width: 100% !important;
+        position: static !important;
+        display: block !important;
+      }
+
+      #preview-container {
+        display: block !important;
+        width: 100% !important;
+      }
+
+      .page-preview {
+        transform: none !important;
+        width: auto !important;
+        height: auto !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        page-break-after: always;
+        page-break-inside: avoid;
+        display: block !important;
+      }
+
+      .print-page {
+        margin: 0 !important;
+        box-shadow: none !important;
+      }
+
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    }
+    
+    /* --- マス目のデザイン --- */
+    .masu::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      border-top: 1px dashed #cbd5e1;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .masu::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      border-left: 1px dashed #cbd5e1;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .animate-fade-in {
+      animation: fadeIn 0.15s ease-out forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.98); }
+      to { opacity: 1; transform: scale(1); }
+    }
+  </style>
+  <style id="dynamic-print-style"></style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    // --- 初期データ・状態管理 ---
+    // 簡単な漢字（1・2年生）を混じり名に反映
+    const INITIAL_STUDENTS = [
+      { id: 1, kanji: "伊藤 学", hiragana: "いとうまなぶ", mixed: "いとう学", selected: true },
+      { id: 2, kanji: "佐藤陽介", hiragana: "さとうようすけ", mixed: "さとうようすけ", selected: true },
+      { id: 3, kanji: "山下 淳", hiragana: "やましたじゅん", mixed: "山下じゅん", selected: true },
+      { id: 4, kanji: "田中隆史", hiragana: "たなかたかし", mixed: "田中たかし", selected: true },
+      { id: 5, kanji: "加藤啓太", hiragana: "かとうけいた", mixed: "かとうけい太", selected: true },
+      { id: 6, kanji: "竹内秀樹", hiragana: "たけうちひでき", mixed: "竹うちひでき", selected: true },
+      { id: 7, kanji: "池田圭介", hiragana: "いけだけいすけ", mixed: "いけ田けい介", selected: true },
+      { id: 8, kanji: "伊藤 康", hiragana: "いとうやすし", mixed: "いとうやすし", selected: true },
+      { id: 9, kanji: "中村淳也", hiragana: "なかむらじゅんや", mixed: "中むらじゅんや", selected: true },
+      { id: 10, kanji: "佐藤秀男", hiragana: "さとうひでお", mixed: "さとうひで男", selected: true },
+      { id: 11, kanji: "西嶋敏恵", hiragana: "にしじまとしえ", mixed: "にしじまとしえ", selected: true },
+      { id: 12, kanji: "宮里早矢香", hiragana: "みやざとさやか", mixed: "みや里早矢か", selected: true },
+      { id: 13, kanji: "中嶋ナミ", hiragana: "なかしまなみ", mixed: "中じまナミ", selected: true },
+      { id: 14, kanji: "朝日清子", hiragana: "あさひせいこ", mixed: "朝日せい子", selected: true },
+      { id: 15, kanji: "大坂玲子", hiragana: "おおさかりょうこ", mixed: "大さか玲子", selected: true },
+      { id: 16, kanji: "奥川元美", hiragana: "おくがわもとみ", mixed: "おく川元美", selected: true },
+      { id: 17, kanji: "大和田海里", hiragana: "おおわだみさと", mixed: "大わ田海里", selected: true },
+      { id: 18, kanji: "垣内和加奈", hiragana: "かきうちわかな", mixed: "内わかな", selected: true },
+      { id: 19, kanji: "井澤有里沙", hiragana: "いざわありさ", mixed: "いざわ有里さ", selected: true },
+      { id: 20, kanji: "金本多美", hiragana: "かなモトたみ", mixed: "金本多美", selected: true }
+    ];
+
+    let state = {
+      activeTab: 'kanji', 
+      printMode: 'all',
+      showPrintModal: false,
+      showDeleteModal: false,
+      students: JSON.parse(localStorage.getItem('namePrintStudents_v31')) || INITIAL_STUDENTS
+    };
+
+    function saveState() {
+      localStorage.setItem('namePrintStudents_v31', JSON.stringify(state.students));
+    }
+
+    // --- 文字レンダリング用ヘルパー ---
+    const SMALL_CHARS = "っゃゅょぁぃぅぇぉゎヶヵ";
+
+    /**
+     * 文字の種類に応じて適切なスタイルでHTMLを生成する
+     */
+    function renderCharHTML(char, baseFontSize, opacity) {
+      if (!char || char === ' ' || char === '　') return "";
+      
+      const isSmall = SMALL_CHARS.includes(char);
+      if (isSmall) {
+        const smallSize = baseFontSize * 0.55;
+        const shiftX = baseFontSize * 0.22;
+        const shiftY = baseFontSize * -0.22;
+        return `
+          <span class="relative z-10 text-[${smallSize}mm] text-black font-kyokasho leading-none transform translate-x-[${shiftX}mm] translate-y-[${shiftY}mm]" style="opacity: ${opacity};">
+            ${char}
+          </span>`;
+      } else {
+        const offsetY = baseFontSize * 0.08;
+        return `
+          <span class="relative z-10 text-[${baseFontSize}mm] text-black font-kyokasho leading-none transform translate-y-[${offsetY}mm]" style="opacity: ${opacity};">
+            ${char}
+          </span>`;
+      }
+    }
+
+    // --- マス目データ生成ロジック ---
+
+    function getSquareFullData(nameStr) {
+      const chars = Array.from(nameStr || "");
+      const totalSlots = 40; // 8行 x 5列
+      const data = new Array(totalSlots).fill("");
+      if (chars.length === 0) return data;
+
+      if (chars.length <= 4) {
+        for (let c = 0; c < 4; c++) {
+          for (let i = 0; i < chars.length; i++) {
+            data[c * 8 + i] = chars[i];
+            if (i + 4 < 8) data[c * 8 + i + 4] = chars[i];
+          }
+        }
+      } else if (chars.length >= 9) {
+        for (let i = 0; i < totalSlots; i++) {
+          data[i] = chars[i % chars.length];
+        }
+      } else {
+        for (let c = 0; c < 4; c++) {
+          for (let i = 0; i < Math.min(chars.length, 8); i++) {
+            data[c * 8 + i] = chars[i];
+          }
+        }
+      }
+      return data;
+    }
+
+    function getHiraganaMasuData(nameStr) {
+      const chars = Array.from(nameStr || ""); 
+      const totalSlots = 70; // 14行 x 5列
+      const data = new Array(totalSlots).fill("");
+      if (chars.length === 0) return data;
+
+      if (chars.length <= 7) {
+        for (let c = 0; c < 4; c++) {
+          for (let i = 0; i < chars.length; i++) {
+            data[c * 14 + i] = chars[i];
+            if (i + 7 < 14) data[c * 14 + i + 7] = chars[i];
+          }
+        }
+      } else {
+        for (let i = 0; i < totalSlots; i++) {
+          data[i] = chars[i % chars.length];
+        }
+      }
+      return data;
+    }
+
+    // --- HTML生成 ---
+
+    function generateSquareBlockHTML(student, type) {
+      if (!student) return `<div class="w-[125mm]"></div>`;
+      
+      const nameValue = type === 'kanji' ? student.kanji : (student.mixed || student.hiragana);
+      const fullData = getSquareFullData(nameValue);
+      const masuSize = 22; 
+      const baseFontSize = 18;
+      let colsHTML = '';
+      
+      for (let c = 0; c < 5; c++) {
+        const opacity = Math.max(0.05, 0.30 - (c * 0.06));
+        const isLastCol = (c === 4);
+        
+        let cellsHTML = '';
+        for (let r = 0; r < 8; r++) { 
+          const char = (isLastCol && nameValue.length < 9) ? "" : fullData[c * 8 + r];
+          const contentHTML = renderCharHTML(char, baseFontSize, opacity);
+          cellsHTML += `
+            <div class="masu relative w-[${masuSize}mm] h-[${masuSize}mm] flex items-center justify-center border-b border-black last:border-b-0 box-border bg-white">
+              ${contentHTML}
+            </div>`;
+        }
+        const borderLeft = c !== 4 ? 'border-l border-black' : '';
+        colsHTML += `<div class="flex flex-col ${borderLeft} box-border">${cellsHTML}</div>`;
+      }
+
+      const titleMap = {
+        kanji: 'じぶんの　なまえを　かん字で　れんしゅうしよう',
+        mixed: 'じぶんの　なまえを　ていねいに　れんしゅうしよう'
+      };
+
+      const sheetTitleCol = `
+        <div class="flex flex-col items-center justify-center px-[3mm] border-l border-black bg-gray-50/30 box-border h-[${masuSize * 8}mm]">
+          <div class="vertical-rl text-[5mm] font-bold tracking-[0.2em] font-kyokasho text-gray-800 leading-tight">
+            ${titleMap[type]}
+          </div>
+        </div>`;
+
+      return `
+        <div class="flex flex-col items-center w-[135mm]">
+          <div class="flex flex-row-reverse border-[1.5px] border-black bg-white box-content">
+            ${sheetTitleCol}
+            ${colsHTML}
+          </div>
+          <div class="mt-2 text-[10px] text-gray-400 font-sans self-end mr-2">${nameValue}</div>
+        </div>
+      `;
+    }
+
+    function generateHiraganaBlockHTML(student) {
+      if (!student) return `<div class="w-[95mm]"></div>`;
+      
+      const fullData = getHiraganaMasuData(student.hiragana);
+      const masuSize = 17; 
+      const baseFontSize = 11;
+      let colsHTML = '';
+      
+      for (let c = 0; c < 5; c++) {
+        const opacity = Math.max(0.05, 0.30 - (c * 0.06));
+        const isLastCol = (c === 4); 
+        
+        let cellsHTML = '';
+        for (let r = 0; r < 14; r++) { 
+          const char = (isLastCol && student.hiragana.length <= 7) ? "" : fullData[c * 14 + r];
+          const contentHTML = renderCharHTML(char, baseFontSize, opacity);
+          cellsHTML += `
+            <div class="masu relative w-[${masuSize}mm] h-[${masuSize}mm] flex items-center justify-center border-b border-black last:border-b-0 box-border bg-white">
+              ${contentHTML}
+            </div>`;
+        }
+        const borderLeft = c !== 4 ? 'border-l border-black' : '';
+        colsHTML += `<div class="flex flex-col ${borderLeft} box-border">${cellsHTML}</div>`;
+      }
+
+      return `
+        <div class="flex flex-col items-center w-[100mm]">
+          <div class="w-full text-center pb-6">
+            <div class="text-[5mm] font-bold font-kyokasho text-gray-800 tracking-widest leading-relaxed">
+              じぶんの　なまえを<br>ひらがなで　れんしゅうしよう
+            </div>
+          </div>
+          <div class="flex flex-row-reverse border-[1.5px] border-black bg-white box-content">
+            ${colsHTML}
+          </div>
+          <div class="mt-2 text-[10px] text-gray-400 font-sans self-end mr-2">${student.hiragana}</div>
+        </div>
+      `;
+    }
+
+    function generateTwoPersonPageHTML(student1, student2, type) {
+      let block1, block2;
+      if (type === 'kanji' || type === 'mixed') {
+        block1 = generateSquareBlockHTML(student1, type);
+        block2 = generateSquareBlockHTML(student2, type);
+      } else {
+        block1 = generateHiraganaBlockHTML(student1);
+        block2 = generateHiraganaBlockHTML(student2);
+      }
+
+      const isLandscape = type !== 'hiragana';
+      const pageWidth = isLandscape ? '297mm' : '210mm';
+      const pageHeight = isLandscape ? '210mm' : '297mm';
+      const borderHeight = isLandscape ? '180mm' : '260mm';
+
+      return `
+        <div class="print-page bg-white relative mx-auto flex flex-row-reverse items-center justify-around px-[5mm] overflow-hidden flex-shrink-0" style="width: ${pageWidth}; height: ${pageHeight};">
+          ${block1}
+          <div class="border-l border-dashed border-gray-300" style="height: ${borderHeight};"></div>
+          ${block2}
+        </div>
+      `;
+    }
+
+    // --- UI レンダリング ---
+
+    function renderTabs() {
+      const tabs = [
+        { id: 'kanji', label: '📝 漢字 (2人分/横)' },
+        { id: 'hiragana', label: '📝 ひらがな (2人分/縦)' },
+        { id: 'mixed', label: '📝 漢字まじり (2人分/横)' },
+        { id: 'students', label: '👥 名簿編集' }
+      ];
+
+      return `
+        <div id="tabs-nav" class="no-print bg-sky-600 text-white shadow-md z-10 flex-shrink-0">
+          <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center px-4">
+            <h1 class="text-xl font-bold py-4 pr-8 border-b border-sky-500 sm:border-none w-full sm:w-auto text-center sm:text-left flex items-center gap-2 font-kyokasho">
+               名前練習プリントメーカー
+            </h1>
+            <div class="flex w-full sm:w-auto overflow-x-auto">
+              ${tabs.map(tab => `
+                <button onclick="changeTab('${tab.id}')" class="px-6 py-4 font-bold whitespace-nowrap transition-colors border-b-4 ${state.activeTab === tab.id ? 'bg-sky-700 border-yellow-400' : 'border-transparent hover:bg-sky-500'}">
+                  ${tab.label}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPrintModal() {
+      if (!state.showPrintModal) return '';
+      const isPortrait = state.activeTab === 'hiragana';
+      return `
+        <div class="modal-overlay fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
+            <div class="bg-sky-600 p-6 text-white text-center"><h3 class="text-2xl font-bold">印刷を開始しますか？</h3></div>
+            <div class="p-8 text-center">
+              <div class="mb-6 bg-sky-50 rounded-2xl p-6 border border-sky-100 text-sky-800 space-y-2 text-sm leading-relaxed text-left">
+                <p>1. 用紙： <strong>A4</strong></p>
+                <p>2. 向き： <strong class="text-red-600">${isPortrait ? '縦（たて）' : '横（よこ）'}</strong></p>
+                <p class="text-red-600 font-bold underline">3. 余白： なし / 背景色： 印刷する</p>
+              </div>
+              <div class="flex flex-col gap-3">
+                <button onclick="executePrint()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-5 rounded-2xl shadow-lg transition-all flex justify-center items-center gap-3 text-xl active:scale-95">はい、印刷します</button>
+                <button onclick="closePrintModal()" class="w-full bg-gray-100 text-gray-600 font-bold py-3 rounded-2xl transition-all">もどる</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderDeleteModal() {
+      if (!state.showDeleteModal) return '';
+      return `
+        <div class="modal-overlay fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+          <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
+            <div class="bg-red-500 p-6 text-white text-center">
+              <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              <h3 class="text-2xl font-bold">名簿を全削除しますか？</h3>
+            </div>
+            <div class="p-8 text-center">
+              <p class="text-gray-600 mb-8">登録されている ${state.students.length} 名のデータがすべて失われます。この操作は取り消せません。</p>
+              <div class="flex flex-col gap-3">
+                <button onclick="executeClearAll()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-2xl shadow-lg transition-all text-xl">はい、すべて削除します</button>
+                <button onclick="closeDeleteModal()" class="w-full bg-gray-100 text-gray-600 font-bold py-3 rounded-2xl transition-all">キャンセル</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderStudentEditor() {
+      const rows = state.students.map((student, index) => `
+        <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors ${!student.selected ? 'bg-gray-100 opacity-75' : ''}">
+          <td class="p-3 text-center"><input type="checkbox" class="w-5 h-5 text-sky-600 rounded" ${student.selected ? 'checked' : ''} onchange="toggleStudentSelection(${student.id}, this.checked)"></td>
+          <td class="p-3 text-center font-mono text-gray-500 text-sm">${index + 1}</td>
+          <td class="p-2"><input type="text" class="border border-gray-300 rounded px-2 py-1 w-full text-center" value="${student.kanji}" onchange="updateStudent(${student.id}, 'kanji', this.value)"></td>
+          <td class="p-2"><input type="text" class="border border-gray-300 rounded px-2 py-1 w-full text-center" value="${student.hiragana}" onchange="updateStudent(${student.id}, 'hiragana', this.value)"></td>
+          <td class="p-2"><input type="text" class="border border-gray-300 rounded px-2 py-1 w-full text-center bg-blue-50 font-bold" value="${student.mixed || ''}" onchange="updateStudent(${student.id}, 'mixed', this.value)"></td>
+          <td class="p-3 text-center"><button onclick="deleteStudent(${student.id})" class="text-red-500 text-xs font-bold border border-red-200 px-2 py-1 rounded">削除</button></td>
+        </tr>`).join('');
+
+      return `
+        <div class="flex-1 overflow-y-auto bg-gray-50 p-4 md:p-8 no-print w-full">
+          <div class="max-w-6xl mx-auto flex flex-col gap-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h2 class="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
+                エクセル等から一括登録
+              </h2>
+              <p class="text-xs text-gray-500 mb-3">「漢字」「ひらがな」「漢字まじり」の3列をコピーして貼り付けてください。</p>
+              <textarea id="paste-area" class="w-full h-32 border border-gray-300 rounded-lg p-3 text-sm font-mono focus:ring-2 focus:ring-emerald-400 focus:outline-none resize-none mb-4" placeholder="山田太郎&#9;やまだたろう&#9;山だたろう"></textarea>
+              <button onclick="importFromPaste()" class="w-full bg-emerald-500 text-white font-bold py-3 rounded-lg shadow hover:bg-emerald-600 transition-colors">登録する</button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
+                <h2 class="text-lg font-bold text-gray-800">名簿データ (${state.students.length}名)</h2>
+                <div class="flex gap-2">
+                  <button onclick="toggleAllStudents(true)" class="text-xs bg-gray-200 px-3 py-1 rounded font-bold">全選択</button>
+                  <button onclick="openDeleteModal()" class="text-xs bg-red-100 text-red-700 px-3 py-1 rounded font-bold">全削除</button>
+                </div>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                  <thead class="bg-sky-50 text-sky-800 border-b">
+                    <tr>
+                      <th class="p-3 w-12 text-center">印</th>
+                      <th class="p-3 w-12 text-center">No</th>
+                      <th class="p-3 text-center">漢字の名前</th>
+                      <th class="p-3 text-center">ひらがな</th>
+                      <th class="p-3 text-center">漢字ひらがな混じり</th>
+                      <th class="p-3 w-16"></th>
+                    </tr>
+                  </thead>
+                  <tbody>${rows}</tbody>
+                </table>
+              </div>
+              <div class="p-4 border-t bg-gray-50 flex justify-end">
+                <button onclick="addEmptyStudent()" class="bg-sky-500 text-white px-5 py-2 rounded-lg font-bold">＋ 1行追加</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderPrintWorkspace() {
+      let targetStudents = state.printMode === 'all' ? state.students : state.students.filter(s => s.selected);
+      let previewContent = '';
+      if (targetStudents.length === 0) {
+        previewContent = `<div class="text-gray-500 font-bold text-xl my-20">印刷対象がありません</div>`;
+      } else {
+        for (let i = 0; i < targetStudents.length; i += 2) {
+          previewContent += `<div class="page-preview bg-white shadow-xl mb-8 transition-transform origin-top">${generateTwoPersonPageHTML(targetStudents[i], targetStudents[i+1], state.activeTab)}</div>`;
+        }
+      }
+      return `<div class="flex-1 flex flex-col md:flex-row overflow-hidden w-full h-full">${renderSettings()}<div id="preview-wrapper" class="flex-1 bg-gray-400 overflow-y-auto p-4 md:p-8 print:p-0"><div id="preview-container" class="flex flex-col items-center w-full">${previewContent}</div></div></div>`;
+    }
+
+    function renderSettings() {
+      const selectedCount = state.students.filter(s => s.selected).length;
+      return `
+        <div id="settings-panel" class="w-full md:w-80 bg-white p-6 border-r border-gray-200 no-print shadow-sm z-10 flex flex-col overflow-y-auto">
+          <h2 class="text-lg font-bold mb-6 text-gray-800 border-b pb-2">印刷設定</h2>
+          <div class="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
+            <label class="block mb-3 font-bold text-gray-700 text-sm">印刷対象</label>
+            <div class="space-y-3">
+              <label class="flex items-center gap-3 p-2 rounded hover:bg-white transition-colors cursor-pointer">
+                <input type="radio" name="printMode" value="all" class="w-5 h-5 text-sky-600" ${state.printMode === 'all' ? 'checked' : ''} onchange="changePrintMode('all')">
+                <span class="font-medium text-gray-800 text-sm">全員分 (${state.students.length}名)</span>
+              </label>
+              <label class="flex items-center gap-3 p-2 rounded hover:bg-white transition-colors cursor-pointer">
+                <input type="radio" name="printMode" value="selected" class="w-5 h-5 text-sky-600" ${state.printMode === 'selected' ? 'checked' : ''} onchange="changePrintMode('selected')">
+                <span class="font-medium text-gray-800 text-sm">選択中のみ (${selectedCount}名)</span>
+              </label>
+            </div>
+          </div>
+          <button onclick="openPrintModal()" class="w-full bg-sky-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all text-lg">印刷を開始</button>
+        </div>`;
+    }
+
+    function render() {
+      const app = document.getElementById('app');
+      updatePrintStyle(); 
+      app.innerHTML = `
+        <div id="app-root" class="h-screen flex flex-col overflow-hidden relative w-full">
+          ${renderTabs()}
+          <div class="flex-1 flex overflow-hidden w-full h-full">
+            ${state.activeTab === 'students' ? renderStudentEditor() : renderPrintWorkspace()}
+          </div>
+          ${renderPrintModal()}
+          ${renderDeleteModal()}
+        </div>`;
+      if (state.activeTab !== 'students') requestAnimationFrame(() => adjustScale());
+    }
+
+    function updatePrintStyle() {
+      const styleEl = document.getElementById('dynamic-print-style');
+      const isPortrait = state.activeTab === 'hiragana';
+      styleEl.innerHTML = `@media print { @page { size: A4 ${isPortrait ? 'portrait' : 'landscape'}; margin: 0; } }`;
+    }
+
+    function adjustScale() {
+      const wrapper = document.getElementById('preview-wrapper');
+      if (!wrapper || window.matchMedia('print').matches) return;
+      const pages = document.querySelectorAll('.page-preview');
+      if (pages.length === 0) return;
+      const availableWidth = wrapper.clientWidth - 48;
+      const isPortrait = state.activeTab === 'hiragana';
+      const pageWidth = isPortrait ? 793.7 : 1122.52;
+      const scale = Math.min(availableWidth / pageWidth, 1.0);
+      pages.forEach(page => {
+        page.style.transform = `scale(${scale})`;
+        page.style.width = `${pageWidth}px`;
+        page.style.height = `${(isPortrait ? 1122.52 : 793.7) * scale}px`;
+        page.style.marginBottom = `${32 * scale}px`;
+      });
+    }
+
+    // --- イベントハンドラ ---
+    window.changeTab = (tab) => { state.activeTab = tab; render(); };
+    window.changePrintMode = (mode) => { state.printMode = mode; render(); };
+    
+    window.openPrintModal = () => { state.showPrintModal = true; render(); };
+    window.closePrintModal = () => { state.showPrintModal = false; render(); };
+    window.executePrint = () => { window.print(); state.showPrintModal = false; render(); };
+
+    window.openDeleteModal = () => { state.showDeleteModal = true; render(); };
+    window.closeDeleteModal = () => { state.showDeleteModal = false; render(); };
+    window.executeClearAll = () => {
+      state.students = [];
+      state.showDeleteModal = false;
+      saveState();
+      render();
+    };
+
+    window.updateStudent = (id, field, value) => {
+      const s = state.students.find(x => x.id === id);
+      if (s) { s[field] = value; saveState(); } 
+    };
+    window.toggleStudentSelection = (id, isSelected) => {
+      const s = state.students.find(x => x.id === id);
+      if (s) { s.selected = isSelected; saveState(); render(); }
+    };
+    window.toggleAllStudents = (isSelected) => {
+      state.students.forEach(s => s.selected = isSelected);
+      saveState(); render();
+    };
+    window.deleteStudent = (id) => {
+      state.students = state.students.filter(s => s.id !== id);
+      saveState();
+      render();
+    };
+    window.addEmptyStudent = () => {
+      const newId = Date.now();
+      state.students.push({ id: newId, kanji: "", hiragana: "", mixed: "", selected: true });
+      saveState(); render();
+    };
+    window.importFromPaste = () => {
+      const textArea = document.getElementById('paste-area');
+      const text = textArea.value.trim();
+      if (!text) return;
+      const lines = text.split(/\r?\n/);
+      const newStudents = lines.map((line, idx) => {
+        const parts = line.split('\t');
+        if (parts.length < 2) return null;
+        return { 
+          id: Date.now() + idx, 
+          kanji: parts[0] || "", 
+          hiragana: (parts[1] || "").replace(/\s+/g, ""), 
+          mixed: parts[2] || "", 
+          selected: true 
+        };
+      }).filter(s => s !== null);
+      state.students = [...state.students, ...newStudents];
+      textArea.value = ""; saveState(); render();
+    };
+
+    window.onload = render;
+    window.addEventListener('resize', adjustScale);
+  </script>
+</body>
+</html>
