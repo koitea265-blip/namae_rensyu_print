@@ -29,6 +29,8 @@
         height: auto !important;
         overflow: visible !important;
         background-color: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
       
       #app-root {
@@ -65,6 +67,11 @@
         page-break-after: always;
         page-break-inside: avoid;
         display: block !important;
+      }
+
+      /* 最後のページに空白が入らないようにする修正 */
+      .page-preview:last-child {
+        page-break-after: auto !important;
       }
 
       .print-page {
@@ -154,11 +161,11 @@
       guideDirection: 'ltr', // 'ltr' (左お手本: デフォルト)
       showPrintModal: false,
       showDeleteModal: false,
-      students: JSON.parse(localStorage.getItem('namePrintStudents_v33')) || INITIAL_STUDENTS
+      students: JSON.parse(localStorage.getItem('namePrintStudents_v34')) || INITIAL_STUDENTS
     };
 
     function saveState() {
-      localStorage.setItem('namePrintStudents_v33', JSON.stringify(state.students));
+      localStorage.setItem('namePrintStudents_v34', JSON.stringify(state.students));
     }
 
     // --- 文字レンダリング用ヘルパー ---
@@ -480,7 +487,14 @@
     window.closeDeleteModal = () => { state.showDeleteModal = false; render(); };
     window.executeClearAll = () => { state.students = []; state.showDeleteModal = false; saveState(); render(); };
     window.updateStudent = (id, field, value) => { const s = state.students.find(x => x.id === id); if (s) { s[field] = value; saveState(); } };
-    window.toggleStudentSelection = (id, isSelected) => { const s = state.students.find(x => x.id === id); if (s) { s.selected = isSelected; saveState(); render(); } };
+    window.toggleStudentSelection = (id, isSelected) => { 
+      const s = state.students.find(x => x.id === id); 
+      if (s) { 
+        s.selected = isSelected; 
+        saveState(); 
+        render(); // 状態更新後に再描画
+      } 
+    };
     window.toggleAllStudents = (isSelected) => { state.students.forEach(s => s.selected = isSelected); saveState(); render(); };
     window.deleteStudent = (id) => { state.students = state.students.filter(s => s.id !== id); saveState(); render(); };
     window.addEmptyStudent = () => { state.students.push({ id: Date.now(), kanji: "", hiragana: "", mixed: "", selected: true }); saveState(); render(); };
