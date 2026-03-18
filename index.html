@@ -154,11 +154,11 @@
       guideDirection: 'ltr', // 'ltr' (左お手本: デフォルト)
       showPrintModal: false,
       showDeleteModal: false,
-      students: JSON.parse(localStorage.getItem('namePrintStudents_v32')) || INITIAL_STUDENTS
+      students: JSON.parse(localStorage.getItem('namePrintStudents_v33')) || INITIAL_STUDENTS
     };
 
     function saveState() {
-      localStorage.setItem('namePrintStudents_v32', JSON.stringify(state.students));
+      localStorage.setItem('namePrintStudents_v33', JSON.stringify(state.students));
     }
 
     // --- 文字レンダリング用ヘルパー ---
@@ -370,7 +370,7 @@
           
           <p class="text-[10px] text-gray-400 leading-relaxed mb-12">※左にお手本を置くと、右利きの子が書く時に手でお手本が隠れません。</p>
 
-          <!-- 作成者クレジット (印刷ボタンの下) -->
+          <!-- 作成者クレジット -->
           <div class="mt-auto pt-8 border-t border-gray-100 text-center text-[10px] text-gray-400 font-sans tracking-tight">
             ©2026　名前練習プリントメーカー　ＩＣＴ支援の杜
           </div>
@@ -389,7 +389,7 @@
         </tr>`).join('');
 
       return `
-        <div class="flex-1 overflow-y-auto bg-gray-50 p-4 md:p-8 no-print w-full">
+        <div id="editor-container" class="flex-1 overflow-y-auto bg-gray-50 p-4 md:p-8 no-print w-full">
           <div class="max-w-6xl mx-auto flex flex-col gap-6">
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h2 class="text-lg font-bold text-gray-800 mb-2">エクセル等から一括登録</h2>
@@ -397,7 +397,14 @@
               <button onclick="importFromPaste()" class="w-full bg-emerald-500 text-white font-bold py-3 rounded-lg shadow hover:bg-emerald-600 transition-colors">名簿を登録・追加</button>
             </div>
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div class="p-4 bg-gray-50 border-b flex justify-between items-center"><h2 class="text-lg font-bold text-gray-800">名簿データ</h2><div class="flex gap-2"><button onclick="toggleAllStudents(true)" class="text-xs bg-gray-200 px-3 py-1 rounded font-bold">全選択</button><button onclick="openDeleteModal()" class="text-xs bg-red-100 text-red-700 px-3 py-1 rounded font-bold">全削除</button></div></div>
+              <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
+                <h2 class="text-lg font-bold text-gray-800">名簿データ</h2>
+                <div class="flex gap-2">
+                  <button onclick="toggleAllStudents(true)" class="text-xs bg-gray-200 px-3 py-1 rounded font-bold hover:bg-gray-300">全選択</button>
+                  <button onclick="toggleAllStudents(false)" class="text-xs bg-gray-200 px-3 py-1 rounded font-bold hover:bg-gray-300">全解除</button>
+                  <button onclick="openDeleteModal()" class="text-xs bg-red-100 text-red-700 px-3 py-1 rounded font-bold hover:bg-red-200">全削除</button>
+                </div>
+              </div>
               <div class="overflow-x-auto"><table class="w-full text-left border-collapse text-sm"><thead class="bg-sky-50 text-sky-800 border-b"><tr><th class="p-3 w-12 text-center">印</th><th class="p-3 w-12 text-center">No</th><th class="p-3 text-center">漢字の名前</th><th class="p-3 text-center">ひらがな</th><th class="p-3 text-center">混じり</th><th class="p-3 w-16"></th></tr></thead><tbody>${rows}</tbody></table></div>
               <div class="p-4 border-t bg-gray-50 flex justify-end"><button onclick="addEmptyStudent()" class="bg-sky-500 text-white px-5 py-2 rounded-lg font-bold">＋ 1行追加</button></div>
             </div>
@@ -429,9 +436,20 @@
     }
 
     function render() {
+      // 再描画前のスクロール位置を取得
+      const editorContainer = document.getElementById('editor-container');
+      const scrollTop = editorContainer ? editorContainer.scrollTop : 0;
+
       const app = document.getElementById('app');
       updatePrintStyle(); 
       app.innerHTML = `<div id="app-root" class="h-screen flex flex-col overflow-hidden relative w-full">${renderTabs()}<div class="flex-1 flex overflow-hidden w-full h-full">${state.activeTab === 'students' ? renderStudentEditor() : renderPrintWorkspace()}</div>${renderPrintModal()}${renderDeleteModal()}</div>`;
+      
+      // スクロール位置を復元
+      const newEditorContainer = document.getElementById('editor-container');
+      if (newEditorContainer) {
+        newEditorContainer.scrollTop = scrollTop;
+      }
+
       if (state.activeTab !== 'students') requestAnimationFrame(() => adjustScale());
     }
 
@@ -464,7 +482,7 @@
     window.updateStudent = (id, field, value) => { const s = state.students.find(x => x.id === id); if (s) { s[field] = value; saveState(); } };
     window.toggleStudentSelection = (id, isSelected) => { const s = state.students.find(x => x.id === id); if (s) { s.selected = isSelected; saveState(); render(); } };
     window.toggleAllStudents = (isSelected) => { state.students.forEach(s => s.selected = isSelected); saveState(); render(); };
-    window.deleteStudent = (id) => { state.students = state.students.filter(s => s.id !== id); render(); };
+    window.deleteStudent = (id) => { state.students = state.students.filter(s => s.id !== id); saveState(); render(); };
     window.addEmptyStudent = () => { state.students.push({ id: Date.now(), kanji: "", hiragana: "", mixed: "", selected: true }); saveState(); render(); };
     window.importFromPaste = () => {
       const text = document.getElementById('paste-area').value.trim();
